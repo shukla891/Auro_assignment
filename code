@@ -1,0 +1,146 @@
+# project initialization
+django-admin startproject backend
+cd backend
+python manage.py startapp challenges
+
+#Models Define the models for challenges and submissions
+#challenges/models.py
+from django.db import models
+from django.contrib.auth.models import User
+
+class Challenge(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    skill_level = models.CharField(max_length=50, choices=[('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advanced', 'Advanced')])
+    test_cases = models.JSONField()
+
+class Submission(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE)
+    code = models.TextField()
+    status = models.CharField(max_length=50, choices=[('pending', 'Pending'), ('graded', 'Graded')])
+    feedback = models.JSONField(null=True)
+
+  #Views Add API endpoints for challenge retrieval and code submission.
+  #challenges/views.py
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .models import Challenge, Submission
+import json
+
+def get_challenge(request, skill_level):
+    challenge = Challenge.objects.filter(skill_level=skill_level).order_by('?').first()
+    if challenge:
+        return JsonResponse({
+            "title": challenge.title,
+            "description": challenge.description,
+            "test_cases": challenge.test_cases,
+        })
+    return JsonResponse({"error": "No challenges found."}, status=404)
+
+@csrf_exempt
+def submit_code(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        # Mock grading
+        feedback = {"message": "Code runs correctly. Optimize for efficiency."}
+        return JsonResponse({"status": "graded", "feedback": feedback})
+    return JsonResponse({"error": "Invalid request method."}, status=400)
+
+  #URL Configuration
+  #backend/urls.py
+from django.urls import path
+from challenges import views
+
+urlpatterns = [
+    path('api/get_challenge/<str:skill_level>/', views.get_challenge),
+    path('api/submit_code/', views.submit_code),
+]
+
+#Frontend (React)
+  //src/components/Challenge.js
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+
+const Challenge = () => {
+    const [challenge, setChallenge] = useState(null);
+    const [code, setCode] = useState("");
+    const [feedback, setFeedback] = useState(null);
+
+    useEffect(() => {
+        axios.get("/api/get_challenge/beginner/")
+            .then(response => setChallenge(response.data))
+            .catch(error => console.error(error));
+    }, []);
+
+    const handleSubmit = () => {
+        axios.post("/api/submit_code/", { code })
+            .then(response => setFeedback(response.data.feedback))
+            .catch(error => console.error(error));
+    };
+
+    return (
+        <div>
+            {challenge && (
+                <div>
+                    <h1>{challenge.title}</h1>
+                    <p>{challenge.description}</p>
+                </div>
+            )}
+            <textarea value={code} onChange={(e) => setCode(e.target.value)} />
+            <button onClick={handleSubmit}>Submit</button>
+            {feedback && <div>Feedback: {feedback.message}</div>}
+        </div>
+    );
+};
+
+export default Challenge;
+
+#Leaderboard Component
+//src/components/Leaderboard.js
+import React from "react";
+
+const Leaderboard = () => {
+    const mockData = [
+        { rank: 1, user: "User1", points: 100 },
+        { rank: 2, user: "User2", points: 95 },
+        { rank: 3, user: "User3", points: 90 },
+    ];
+
+    return (
+        <div>
+            <h2>Leaderboard</h2>
+            <ul>
+                {mockData.map((entry) => (
+                    <li key={entry.rank}>
+                        {entry.rank}. {entry.user} - {entry.points} pts
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+export default Leaderboard;
+
+#AI Model (Python)-challenge generation
+#ai_models/generate_challenge.py
+def generate_challenge(skill_level):
+    # Mock implementation
+    if skill_level == 'beginner':
+        return {
+            "title": "Sum of Two Numbers",
+            "description": "Write a program to add two numbers.",
+            "test_cases": [{"input": "2 3", "output": "5"}],
+        }
+    # Extend for other skill levels
+    return {}
+
+#Code Grading 
+# ai_models/grade_code.py
+def grade_code(code, test_cases):
+    for case in test_cases:
+        # Mock execution
+        if eval(code) != case["output"]:
+            return {"message": "Incorrect output for input: " + case["input"]}
+    return {"message": "Correct solution"}
